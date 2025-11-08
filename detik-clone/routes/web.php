@@ -1,0 +1,163 @@
+<?php
+
+use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Auth;
+use Inertia\Inertia;
+use App\Models\Article;
+use App\Models\Category;
+use App\Http\Controllers\ArticleController;
+
+/*
+|--------------------------------------------------------------------------
+| News Portal Routes
+|--------------------------------------------------------------------------
+|
+| Routes for the Detik.com clone frontend using Inertia.js + Vue 3
+|
+*/
+
+// Homepage - Main news feed
+Route::get('/', function () {
+    $featuredArticles = Article::published()
+        ->featured()
+        ->with(['author', 'category'])
+        ->limit(5)
+        ->get();
+        
+    $breakingNews = Article::published()
+        ->breaking()
+        ->with(['author', 'category'])
+        ->limit(3)
+        ->get();
+        
+    $latestNews = Article::published()
+        ->with(['author', 'category'])
+        ->latest('published_at')
+        ->limit(10)
+        ->get();
+        
+    $categories = Category::active()
+        ->root()
+        ->with('activeChildren')
+        ->get();
+
+    return Inertia::render('Home', [
+        'featuredArticles' => $featuredArticles,
+        'breakingNews' => $breakingNews,
+        'latestNews' => $latestNews,
+        'categories' => $categories,
+    ]);
+})->name('home');
+
+// Article Resource Routes for CRUD operations (MOVED TO TOP)
+Route::resource('articles', ArticleController::class)->except(['create', 'store', 'edit', 'update', 'destroy']);
+
+// Protected article routes (require authentication)
+Route::middleware('auth')->group(function () {
+    Route::get('/articles/create', [ArticleController::class, 'create'])->name('articles.create');
+    Route::post('/articles', [ArticleController::class, 'store'])->name('articles.store');
+    Route::get('/articles/{article}/edit', [ArticleController::class, 'edit'])->name('articles.edit');
+    Route::put('/articles/{article}', [ArticleController::class, 'update'])->name('articles.update');
+    Route::patch('/articles/{article}', [ArticleController::class, 'update']);
+    Route::delete('/articles/{article}', [ArticleController::class, 'destroy'])->name('articles.destroy');
+    
+    // Additional protected article routes
+    Route::post('/articles/{article}/bookmark', [ArticleController::class, 'bookmark'])->name('articles.bookmark');
+    Route::delete('/articles/{article}/bookmark', [ArticleController::class, 'unbookmark'])->name('articles.unbookmark');
+    Route::post('/articles/{article}/comment', [ArticleController::class, 'comment'])->name('articles.comment');
+});
+
+// Public article routes (anyone can access)
+Route::post('/articles/{article}/share', [ArticleController::class, 'share'])->name('articles.share');
+
+// Authentication Routes (basic)
+Route::get('/login', function() { return view('auth.login'); })->name('login');
+Route::post('/login', function() { return redirect('/'); })->name('login.submit');
+Route::post('/logout', function() { Auth::logout(); return redirect('/'); })->name('logout');
+Route::get('/register', function() { return view('auth.register'); })->name('register');
+Route::post('/register', function() { return redirect('/'); })->name('register.submit');
+
+
+
+// Category pages
+Route::get('/kategori/{category:slug}', function (Category $category) {
+    $articles = Article::published()
+        ->byCategory($category->id)
+        ->with(['author', 'category'])
+        ->latest('published_at')
+        ->paginate(20);
+
+    $allCategories = Category::active()
+        ->root()
+        ->get();
+        
+    $popularArticles = Article::published()
+        ->with(['author', 'category'])
+        ->orderBy('views', 'desc')
+        ->limit(5)
+        ->get();
+
+    return Inertia::render('Category', [
+        'category' => $category,
+        'articles' => $articles,
+        'allCategories' => $allCategories,
+        'popularArticles' => $popularArticles,
+    ]);
+})->name('category.show');
+
+
+
+// Search
+Route::get('/cari', function () {
+    $query = request('q');
+    $articles = [];
+    
+    if ($query) {
+        $articles = Article::published()
+            ->where(function ($q) use ($query) {
+                $q->where('title', 'like', "%{$query}%")
+                  ->orWhere('excerpt', 'like', "%{$query}%")
+                  ->orWhere('content', 'like', "%{$query}%");
+            })
+            ->with(['author', 'category'])
+            ->latest('published_at')
+            ->paginate(15);
+    }
+
+    return Inertia::render('Search', [
+        'query' => $query,
+        'articles' => $articles,
+    ]);
+})->name('search');
+
+// Tag pages
+Route::get('/tag/{tag:slug}', function (\App\Models\Tag $tag) {
+    $articles = $tag->publishedArticles()
+        ->with(['author', 'category'])
+        ->latest('published_at')
+        ->paginate(20);
+
+    return Inertia::render('Tag', [
+        'tag' => $tag,
+        'articles' => $articles,
+    ]);
+})->name('tag.show');
+
+
+
+// Category routes
+Route::get('/categories/{category}', function(Category $category) {
+    return redirect()->route('category.show', $category->slug);
+})->name('categories.show');
+
+// Tag routes
+Route::get('/tags/{tag}', function(\App\Models\Tag $tag) {
+    return redirect()->route('tag.show', $tag->slug);
+})->name('tags.show');
+
+// Fallback route for SPA (must be last)
+Route::fallback(function () {
+    return Inertia::render('Error', [
+        'status' => 404
+    ]);
+});
