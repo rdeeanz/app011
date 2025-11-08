@@ -122,7 +122,8 @@ class LatestNewsController extends Controller
         $offset = $request->input('offset');
         $limit = $request->input('limit', 10);
 
-        $latestNews = Article::published()
+        // Fetch one extra record to check if there are more items
+        $results = Article::published()
             ->with(['category:id,name,slug,color', 'author:id,name,avatar'])
             ->select([
                 'id', 'title', 'slug', 'excerpt', 'featured_image', 
@@ -130,12 +131,12 @@ class LatestNewsController extends Controller
             ])
             ->latest('published_at')
             ->offset($offset)
-            ->limit($limit)
+            ->limit($limit + 1)
             ->get();
 
-        $hasMore = Article::published()
-            ->offset($offset + $limit)
-            ->exists();
+        // Check if we have more items and trim to original limit
+        $hasMore = $results->count() > $limit;
+        $latestNews = $hasMore ? $results->take($limit) : $results;
 
         return response()->json([
             'success' => true,

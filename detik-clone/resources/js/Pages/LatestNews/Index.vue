@@ -234,7 +234,7 @@ const props = defineProps<Props>()
 // Reactive state
 const loading = ref(false)
 const itemsPerPage = ref(10)
-const paginatedNews = ref<PaginatedData>(props.latestNews)
+const paginatedNews = computed(() => props.latestNews)
 
 // Computed properties
 const startItem = computed(() => {
@@ -301,7 +301,8 @@ const changeItemsPerPage = () => {
   url.searchParams.set('per_page', itemsPerPage.value.toString())
   url.searchParams.set('page', '1') // Reset to first page
   
-  router.get(url.toString())
+  // Use relative path for Inertia navigation
+  router.get(url.pathname + url.search)
 }
 
 // Lifecycle

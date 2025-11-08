@@ -256,6 +256,21 @@ const fetchLatestNews = async (page: number = 1) => {
     loading.value = true
     
     const response = await fetch(`/berita-terbaru/homepage?page=${page}&per_page=${props.itemsPerPage}`)
+    
+    // Check HTTP status before parsing JSON
+    if (!response.ok) {
+      let errorMessage = `HTTP ${response.status}: ${response.statusText}`
+      try {
+        const errorData = await response.text()
+        if (errorData) {
+          errorMessage += ` - ${errorData}`
+        }
+      } catch (e) {
+        // Ignore error parsing error response
+      }
+      throw new Error(errorMessage)
+    }
+    
     const data = await response.json()
     
     if (data.success) {
@@ -267,9 +282,12 @@ const fetchLatestNews = async (page: number = 1) => {
       
       totalArticles.value = data.total
       hasMorePages.value = data.pagination ? data.pagination.has_more_pages : false
+    } else {
+      throw new Error(data.message || 'Failed to fetch latest news')
     }
   } catch (error) {
     console.error('Failed to fetch latest news:', error)
+    // Optionally show user-friendly error message
   } finally {
     loading.value = false
   }
@@ -295,11 +313,19 @@ const loadMoreArticles = async () => {
   try {
     loadingMore.value = true
     
+    // Get CSRF token and validate it exists
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+    if (!csrfToken) {
+      console.error('CSRF token not found in meta tag')
+      loadingMore.value = false
+      return
+    }
+    
     const response = await fetch('/berita-terbaru/load-more', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+        'X-CSRF-TOKEN': csrfToken
       },
       body: JSON.stringify({
         offset: articles.value.length,
@@ -307,14 +333,31 @@ const loadMoreArticles = async () => {
       })
     })
     
+    // Check HTTP status before parsing JSON
+    if (!response.ok) {
+      let errorMessage = `HTTP ${response.status}: ${response.statusText}`
+      try {
+        const errorText = await response.text()
+        if (errorText) {
+          errorMessage += ` - ${errorText}`
+        }
+      } catch (e) {
+        // Ignore error parsing error response
+      }
+      throw new Error(errorMessage)
+    }
+    
     const data = await response.json()
     
     if (data.success) {
       articles.value.push(...data.data)
       hasMorePages.value = data.has_more
+    } else {
+      throw new Error(data.message || 'Failed to load more articles')
     }
   } catch (error) {
     console.error('Failed to load more articles:', error)
+    // Optionally show user-friendly error message
   } finally {
     loadingMore.value = false
   }

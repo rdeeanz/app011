@@ -153,13 +153,15 @@ class User extends Authenticatable
             'comments' => $this->comments()->with('article:id,title,slug')->get()->map(function ($comment) {
                 return [
                     'content' => $comment->content,
-                    'article' => $comment->article->title,
+                    'article' => $comment->article ? $comment->article->title : 'Deleted Article',
+                    'article_slug' => $comment->article ? $comment->article->slug : null,
                     'created_at' => $comment->created_at,
                 ];
             })->toArray(),
             'bookmarks' => $this->bookmarks()->with('article:id,title,slug')->get()->map(function ($bookmark) {
                 return [
-                    'article' => $bookmark->article->title,
+                    'article' => $bookmark->article ? $bookmark->article->title : 'Deleted Article',
+                    'article_slug' => $bookmark->article ? $bookmark->article->slug : null,
                     'bookmarked_at' => $bookmark->created_at,
                 ];
             })->toArray(),

@@ -275,7 +275,7 @@ const authorArticleCount = ref(0)
 const showShareModal = ref(false)
 const showReportModal = ref(false)
 const readingProgress = ref(0)
-let readingProgressInterval: number | null = null
+let readingProgressInterval: NodeJS.Timeout | null = null
 
 // Computed
 const isMobile = computed(() => breakpoints.smaller('tablet').value)
@@ -574,6 +574,16 @@ watch(scrollY, (newY) => {
 // Lifecycle
 onMounted(() => {
   fetchArticle()
+  
+  // Start reading progress tracking
+  readingProgressInterval = setInterval(() => {
+    const scrollTop = window.pageYOffset || document.documentElement.scrollTop
+    const scrollHeight = document.documentElement.scrollHeight - window.innerHeight
+    
+    if (scrollHeight > 0) {
+      readingProgress.value = Math.min(100, Math.round((scrollTop / scrollHeight) * 100))
+    }
+  }, 100)
 })
 
 // Cleanup function for preventing memory leaks

@@ -439,7 +439,19 @@ class AdminController extends Controller
     {
         $totalSpace = disk_total_space('/');
         $freeSpace = disk_free_space('/');
-        $diskUsedPercentage = $totalSpace > 0 ? round((1 - ($freeSpace / $totalSpace)) * 100, 2) : 0;
+        
+        // Validate disk space functions return values
+        $diskUsedPercentage = null;
+        if ($totalSpace !== false && $freeSpace !== false && is_numeric($totalSpace) && is_numeric($freeSpace) && $totalSpace > 0) {
+            $diskUsedPercentage = round((1 - ($freeSpace / $totalSpace)) * 100, 2);
+        } else {
+            // Log the failure for debugging
+            \Log::warning('Failed to retrieve disk space information', [
+                'total_space' => $totalSpace,
+                'free_space' => $freeSpace
+            ]);
+            $diskUsedPercentage = 0; // Safe fallback
+        }
         
         return [
             'disk_usage' => $diskUsedPercentage,
@@ -585,7 +597,7 @@ class AdminController extends Controller
                 break;
         }
 
-        return $query->paginate($filters['per_page'] ?? 15);
+        return $query->paginate($filters['per_page'] ?? 25);
     }
 
     private function getArticleStatusCounts(): array
