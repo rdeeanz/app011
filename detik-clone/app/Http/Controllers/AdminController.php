@@ -437,8 +437,12 @@ class AdminController extends Controller
 
     private function getSystemHealth(): array
     {
+        $totalSpace = disk_total_space('/');
+        $freeSpace = disk_free_space('/');
+        $diskUsedPercentage = $totalSpace > 0 ? round((1 - ($freeSpace / $totalSpace)) * 100, 2) : 0;
+        
         return [
-            'disk_usage' => disk_free_space('/') / disk_total_space('/') * 100,
+            'disk_usage' => $diskUsedPercentage,
             'memory_usage' => memory_get_usage(true) / 1024 / 1024, // MB
             'php_version' => PHP_VERSION,
             'laravel_version' => app()->version(),
@@ -456,7 +460,7 @@ class AdminController extends Controller
                 'date' => $date->format('Y-m-d'),
                 'articles' => Article::whereDate('created_at', $date)->count(),
                 'comments' => Comment::whereDate('created_at', $date)->count(),
-                'views' => Article::whereDate('created_at', $date)->sum('views_count'),
+                'views_of_articles_created' => Article::whereDate('created_at', $date)->sum('views_count'),
             ];
         });
 
@@ -534,7 +538,37 @@ class AdminController extends Controller
     {
         $query = User::withCount('articles');
 
-        // Add role and status filtering logic here based on your user model
+        // Apply role filtering - skip "all" values
+        if (!empty($filters['role']) && $filters['role'] !== 'all') {
+            $query->where('role', $filters['role']);
+        }
+
+        // Apply status filtering - skip "all" values and map UI values to DB predicates
+        if (!empty($filters['status'])) {
+            $statuses = is_array($filters['status']) ? $filters['status'] : [$filters['status']];
+            $statuses = array_filter($statuses, fn($status) => $status !== 'all');
+            
+            if (!empty($statuses)) {
+                $query->where(function ($q) use ($statuses) {
+                    foreach ($statuses as $status) {
+                        if ($status === 'active') {
+                            $q->orWhere('is_active', 1);
+                        } elseif ($status === 'inactive') {
+                            $q->orWhere('is_active', 0);
+                        } elseif ($status === 'banned') {
+                            // Assuming banned users have is_active = 0 and a banned flag or status
+                            $q->orWhere(function ($subQ) {
+                                $subQ->where('is_active', 0)
+                                     ->where(function ($banQ) {
+                                         $banQ->where('is_banned', 1)
+                                              ->orWhere('status', 'banned');
+                                     });
+                            });
+                        }
+                    }
+                });
+            }
+        }
 
         switch ($filters['sort']) {
             case 'oldest':
@@ -551,7 +585,7 @@ class AdminController extends Controller
                 break;
         }
 
-        return $query->paginate($filters['per_page']);
+        return $query->paginate($filters['per_page'] ?? 15);
     }
 
     private function getArticleStatusCounts(): array

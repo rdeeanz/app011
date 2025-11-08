@@ -359,6 +359,24 @@ class Category extends Model
         return 'slug';
     }
 
+    /**
+     * Generate a unique slug for the category
+     */
+    private function generateUniqueSlug(string $name): string
+    {
+        $slug = Str::slug($name);
+        $originalSlug = $slug;
+        $count = 1;
+
+        // Check for existing slugs and append number if needed
+        while (self::where('slug', $slug)->where('id', '!=', $this->id ?? 0)->exists()) {
+            $slug = $originalSlug . '-' . $count;
+            $count++;
+        }
+
+        return $slug;
+    }
+
     // ===== BOOT METHOD =====
 
     protected static function boot()
@@ -367,7 +385,7 @@ class Category extends Model
         
         static::creating(function (Category $category) {
             if (empty($category->slug)) {
-                $category->slug = Str::slug($category->name);
+                $category->slug = $category->generateUniqueSlug($category->name);
             }
             
             // Auto-generate SEO fields if not provided
@@ -382,8 +400,8 @@ class Category extends Model
         
         static::updating(function (Category $category) {
             if ($category->isDirty('name')) {
-                if (empty($category->slug)) {
-                    $category->slug = Str::slug($category->name);
+                if (empty($category->slug) || $category->slug === Str::slug($category->getOriginal('name'))) {
+                    $category->slug = $category->generateUniqueSlug($category->name);
                 }
                 
                 if (empty($category->seo_title)) {

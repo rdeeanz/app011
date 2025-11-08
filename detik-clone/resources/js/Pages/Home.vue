@@ -48,7 +48,7 @@
                       >
                       <div class="absolute top-4 left-4">
                         <span class="bg-detik-red text-white px-3 py-1 rounded text-sm font-medium">
-                          {{ featuredArticles[0].category.name }}
+                          {{ featuredArticles[0].category?.name || 'News' }}
                         </span>
                       </div>
                     </div>
@@ -59,7 +59,7 @@
                       {{ featuredArticles[0].excerpt }}
                     </p>
                     <div class="flex items-center text-sm text-gray-500">
-                      <span>{{ featuredArticles[0].author.name }}</span>
+                      <span>{{ featuredArticles[0].author?.name || 'Redaksi' }}</span>
                       <span class="mx-2">•</span>
                       <time :datetime="featuredArticles[0].published_at">
                         {{ formatDate(featuredArticles[0].published_at) }}
@@ -89,7 +89,7 @@
                   <div class="flex-1 min-w-0">
                     <div class="mb-2">
                       <span class="inline-block bg-gray-100 text-gray-700 px-2 py-1 rounded text-xs font-medium">
-                        {{ article.category.name }}
+                        {{ article.category?.name || 'News' }}
                       </span>
                     </div>
                     <Link :href="`/articles/${article.slug}`">
@@ -98,7 +98,7 @@
                       </h3>
                     </Link>
                     <div class="flex items-center text-xs text-gray-500">
-                      <span>{{ article.author.name }}</span>
+                      <span>{{ article.author?.name || 'Redaksi' }}</span>
                       <span class="mx-1">•</span>
                       <time :datetime="article.published_at">
                         {{ formatDate(article.published_at) }}
@@ -110,52 +110,10 @@
             </div>
           </section>
 
-          <!-- Latest News -->
-          <section>
-            <div class="flex items-center justify-between mb-6">
-              <h2 class="text-2xl font-bold text-gray-900">Berita Terbaru</h2>
-              <Link href="/kategori/news" class="text-detik-red hover:underline font-medium">
-                Lihat Semua
-              </Link>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <article 
-                v-for="article in latestNews" 
-                :key="article.id"
-                class="group bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow"
-              >
-                <Link :href="`/articles/${article.slug}`">
-                  <div class="relative">
-                    <img 
-                      :src="article.featured_image || '/images/placeholder.jpg'"
-                      :alt="article.title"
-                      class="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300"
-                    >
-                    <div class="absolute top-3 left-3">
-                      <span class="bg-detik-red text-white px-2 py-1 rounded text-xs font-medium">
-                        {{ article.category.name }}
-                      </span>
-                    </div>
-                  </div>
-                  <div class="p-4">
-                    <h3 class="font-semibold text-gray-900 group-hover:text-detik-red line-clamp-3 mb-2">
-                      {{ article.title }}
-                    </h3>
-                    <p class="text-gray-600 text-sm line-clamp-2 mb-3">
-                      {{ article.excerpt }}
-                    </p>
-                    <div class="flex items-center justify-between text-xs text-gray-500">
-                      <span>{{ article.author.name }}</span>
-                      <time :datetime="article.published_at">
-                        {{ formatDate(article.published_at) }}
-                      </time>
-                    </div>
-                  </div>
-                </Link>
-              </article>
-            </div>
-          </section>
+          <!-- Latest News with Pagination -->
+          <LatestNewsSection 
+            :items-per-page="6"
+          />
         </div>
 
         <!-- Sidebar -->
@@ -214,16 +172,14 @@
 <script setup lang="ts">
 import { Head, Link } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
+import LatestNewsSection from '@/components/homepage/LatestNewsSection.vue'
 
-interface User {
-  id: number
-  name: string
-}
 
 interface Category {
   id: number
   name: string
   slug: string
+  color?: string
 }
 
 interface Article {
@@ -233,8 +189,18 @@ interface Article {
   excerpt: string
   featured_image?: string
   published_at: string
-  author: User
-  category: Category
+  views_count: number
+  author?: {
+    id: number
+    name: string
+    avatar?: string
+  }
+  category?: {
+    id: number
+    name: string
+    slug: string
+    color?: string
+  }
 }
 
 defineProps<{
@@ -270,6 +236,7 @@ const formatDate = (dateString: string): string => {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  line-clamp: 2;
 }
 
 .line-clamp-3 {
@@ -277,6 +244,7 @@ const formatDate = (dateString: string): string => {
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  line-clamp: 3;
 }
 
 @keyframes marquee {

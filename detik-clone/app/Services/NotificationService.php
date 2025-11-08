@@ -447,13 +447,18 @@ class NotificationService
     protected function sendNewsletterEmail(User $user, array $articles, string $frequency): void
     {
         try {
-            Mail::send('emails.newsletter', [
+            $templateName = $this->getEmailTemplate('newsletter', $frequency);
+            $subject = $this->getEmailSubject('newsletter', $frequency);
+
+            Mail::send($templateName, [
                 'user' => $user,
                 'articles' => $articles,
-                'frequency' => $frequency
-            ], function ($message) use ($user, $frequency) {
+                'frequency' => $frequency,
+                'app_name' => config('app.name'),
+                'app_url' => config('app.url'),
+            ], function ($message) use ($user, $subject) {
                 $message->to($user->email, $user->name)
-                       ->subject(ucfirst($frequency) . ' Newsletter - ' . config('app.name'));
+                       ->subject($subject);
             });
         } catch (\Exception $e) {
             Log::error('Newsletter email failed', [
@@ -462,6 +467,99 @@ class NotificationService
                 'error' => $e->getMessage()
             ]);
         }
+    }
+
+    // ===== EMAIL TEMPLATE METHODS =====
+
+    /**
+     * Get email template with fallback handling
+     */
+    private function getEmailTemplate(string $type, string $variant = 'default'): string
+    {
+        $templates = [
+            'newsletter' => [
+                'daily' => 'emails.newsletter.daily',
+                'weekly' => 'emails.newsletter.weekly',
+                'monthly' => 'emails.newsletter.monthly',
+                'default' => 'emails.newsletter.default',
+            ],
+            'article_notification' => [
+                'approved' => 'emails.article.approved',
+                'rejected' => 'emails.article.rejected',
+                'published' => 'emails.article.published',
+                'default' => 'emails.article.default',
+            ],
+            'comment_notification' => [
+                'new' => 'emails.comment.new',
+                'reply' => 'emails.comment.reply',
+                'default' => 'emails.comment.default',
+            ]
+        ];
+
+        $templatePath = $templates[$type][$variant] ?? $templates[$type]['default'] ?? 'emails.default';
+
+        // Check if template exists, fallback to basic template if not
+        if (!view()->exists($templatePath)) {
+            Log::warning("Email template not found: {$templatePath}, using fallback");
+            return 'emails.default';
+        }
+
+        return $templatePath;
+    }
+
+    /**
+     * Get email subject with fallback
+     */
+    private function getEmailSubject(string $type, string $variant = 'default'): string
+    {
+        $subjects = [
+            'newsletter' => [
+                'daily' => 'Daily Newsletter - ' . config('app.name'),
+                'weekly' => 'Weekly Newsletter - ' . config('app.name'),
+                'monthly' => 'Monthly Newsletter - ' . config('app.name'),
+                'default' => 'Newsletter - ' . config('app.name'),
+            ],
+            'article_notification' => [
+                'approved' => 'Your Article Has Been Approved',
+                'rejected' => 'Article Review Update',
+                'published' => 'Your Article Is Now Live',
+                'default' => 'Article Update - ' . config('app.name'),
+            ],
+            'comment_notification' => [
+                'new' => 'New Comment on Your Article',
+                'reply' => 'Someone Replied to Your Comment',
+                'default' => 'New Activity - ' . config('app.name'),
+            ]
+        ];
+
+        return $subjects[$type][$variant] ?? $subjects[$type]['default'] ?? config('app.name') . ' Notification';
+    }
+
+    /**
+     * Validate email template data
+     */
+    private function validateEmailData(array $data, string $templateType): array
+    {
+        $requiredFields = [
+            'newsletter' => ['user', 'articles'],
+            'article_notification' => ['user', 'article'],
+            'comment_notification' => ['user', 'comment', 'article'],
+        ];
+
+        $required = $requiredFields[$templateType] ?? ['user'];
+        
+        foreach ($required as $field) {
+            if (!isset($data[$field])) {
+                throw new \InvalidArgumentException("Missing required field for email template: {$field}");
+            }
+        }
+
+        // Add default values
+        $data['app_name'] = $data['app_name'] ?? config('app.name');
+        $data['app_url'] = $data['app_url'] ?? config('app.url');
+        $data['support_email'] = $data['support_email'] ?? config('mail.from.address');
+
+        return $data;
     }
 
     // ===== BULK OPERATIONS =====

@@ -835,35 +835,97 @@ class Article extends Model
         ];
     }
 
-    // Cache management
-    public function clearViewsCache(): void
+    // ===== CACHE MANAGEMENT =====
+    
+    /**
+     * Get standardized cache key for this article
+     */
+    public function getCacheKey(string $suffix = ''): string
     {
-        // Skip cache tagging for database cache driver
-        if (config('cache.default') === 'database') {
-            Cache::flush(); // Clear all cache for database driver
-            return;
-        }
-        
-        $tags = ["article:{$this->id}", "category:{$this->category_id}", 'popular_articles'];
-        Cache::tags($tags)->flush();
+        return "article:{$this->id}" . ($suffix ? ":{$suffix}" : '');
     }
 
-    public function clearAllCache(): void
+    /**
+     * Clear view-related cache only
+     */
+    public function clearViewsCache(): void
     {
-        // Skip cache tagging for database cache driver
-        if (config('cache.default') === 'database') {
-            Cache::flush(); // Clear all cache for database driver
-            return;
+        $keysToForget = [
+            $this->getCacheKey('views'),
+            $this->getCacheKey('popular_stats'),
+            "category:{$this->category_id}:popular",
+            'articles:trending',
+            'articles:popular_today',
+        ];
+
+        foreach ($keysToForget as $key) {
+            Cache::forget($key);
         }
         
-        $tags = [
-            "article:{$this->id}",
-            "category:{$this->category_id}",
-            'popular_articles',
-            'trending_articles',
-            'featured_articles'
+        // Use cache tags if supported
+        if ($this->cacheSupportsTags()) {
+            Cache::tags(['article_views', "article:{$this->id}"])->flush();
+        }
+    }
+
+    /**
+     * Clear all cache related to this article
+     */
+    public function clearAllCache(): void
+    {
+        $keysToForget = [
+            $this->getCacheKey(),
+            $this->getCacheKey('views'),
+            $this->getCacheKey('related'),
+            $this->getCacheKey('comments'),
+            $this->getCacheKey('meta'),
+            "category:{$this->category_id}:articles",
+            "author:{$this->author_id}:articles",
+            'articles:featured',
+            'articles:trending',
+            'articles:recent',
+            'articles:popular',
         ];
-        Cache::tags($tags)->flush();
+
+        foreach ($keysToForget as $key) {
+            Cache::forget($key);
+        }
+        
+        // Use cache tags if supported
+        if ($this->cacheSupportsTags()) {
+            $tags = [
+                "article:{$this->id}",
+                "category:{$this->category_id}",
+                "author:{$this->author_id}",
+                'articles_listing'
+            ];
+            Cache::tags($tags)->flush();
+        }
+    }
+
+    /**
+     * Clear category-related cache
+     */
+    public function clearCategoryCache(): void
+    {
+        $keysToForget = [
+            "category:{$this->category_id}:articles",
+            "category:{$this->category_id}:count",
+            "category:{$this->category_id}:popular",
+            'categories:with_article_counts',
+        ];
+
+        foreach ($keysToForget as $key) {
+            Cache::forget($key);
+        }
+    }
+
+    /**
+     * Check if current cache driver supports tags
+     */
+    private function cacheSupportsTags(): bool
+    {
+        return !in_array(config('cache.default'), ['database', 'file', 'array']);
     }
 
     // Private helper methods

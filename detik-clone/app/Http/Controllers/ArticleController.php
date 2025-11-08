@@ -329,7 +329,7 @@ class ArticleController extends Controller
             'article_id' => $article->id,
             'user_id' => $user->id,
             'action' => $bookmarked ? 'add' : 'remove',
-        ]);
+        ], $user->id);
 
         return response()->json([
             'success' => true,

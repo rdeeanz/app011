@@ -6,6 +6,7 @@ use Inertia\Inertia;
 use App\Models\Article;
 use App\Models\Category;
 use App\Http\Controllers\ArticleController;
+use App\Http\Controllers\LatestNewsController;
 
 /*
 |--------------------------------------------------------------------------
@@ -48,6 +49,13 @@ Route::get('/', function () {
         'categories' => $categories,
     ]);
 })->name('home');
+
+// Latest News routes with pagination
+Route::prefix('berita-terbaru')->name('latest-news.')->group(function () {
+    Route::get('/', [LatestNewsController::class, 'index'])->name('index');
+    Route::get('/homepage', [LatestNewsController::class, 'homepage'])->name('homepage');
+    Route::post('/load-more', [LatestNewsController::class, 'loadMore'])->name('load-more');
+});
 
 // Article Resource Routes for CRUD operations (MOVED TO TOP)
 Route::resource('articles', ArticleController::class)->except(['create', 'store', 'edit', 'update', 'destroy']);

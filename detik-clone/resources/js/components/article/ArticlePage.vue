@@ -209,7 +209,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed, watch, nextTick } from 'vue'
+import { ref, reactive, onMounted, onUnmounted, computed, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useBreakpoints } from '@vueuse/core'
 import { useHead } from '@vueuse/head'
@@ -275,6 +275,7 @@ const authorArticleCount = ref(0)
 const showShareModal = ref(false)
 const showReportModal = ref(false)
 const readingProgress = ref(0)
+let readingProgressInterval: number | null = null
 
 // Computed
 const isMobile = computed(() => breakpoints.smaller('tablet').value)
@@ -325,7 +326,7 @@ const fetchArticle = async () => {
       trackPageView('article_view', {
         article_id: article.value.id,
         article_title: article.value.title,
-        category_id: article.value.category_id,
+        category_id: article.value.category?.id,
         author_id: article.value.author.id
       })
 
@@ -575,7 +576,22 @@ onMounted(() => {
   fetchArticle()
 })
 
-// Watch for route changes
+// Cleanup function for preventing memory leaks
+onUnmounted(() => {
+  // Clear any intervals, timeouts, or event listeners
+  if (readingProgressInterval) {
+    clearInterval(readingProgressInterval)
+  }
+  
+  // Reset reactive state to prevent memory leaks
+  article.value = null
+  relatedArticles.value = []
+  trendingArticles.value = []
+  popularTags.value = []
+  comments.value = []
+})
+
+// Watch for route changes  
 watch(() => route.params.slug, () => {
   if (route.name === 'article') {
     fetchArticle()

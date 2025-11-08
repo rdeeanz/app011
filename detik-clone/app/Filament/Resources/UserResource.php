@@ -24,6 +24,9 @@ class UserResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-users';
 
+    // Protected roles that cannot be bulk-modified
+    protected static array $protectedRoles = ['admin'];
+
     protected static ?string $navigationGroup = 'User Management';
 
     protected static ?int $navigationSort = 1;
@@ -333,8 +336,8 @@ class UserResource extends Resource
                                     return false;
                                 }
                                 
-                                // Don't toggle users with protected roles (admins, super-admins)
-                                if (in_array($record->role, ['admin', 'super-admin'])) {
+                                // Don't toggle users with protected roles
+                                if (in_array($record->role, static::$protectedRoles)) {
                                     return false;
                                 }
                                 

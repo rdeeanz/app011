@@ -114,4 +114,76 @@ class User extends Authenticatable
     {
         return in_array($this->role, ['admin', 'editor']);
     }
+
+    // ===== PII & GDPR COMPLIANCE METHODS =====
+
+    /**
+     * Anonymize user data for GDPR compliance
+     */
+    public function anonymize(): bool
+    {
+        return $this->update([
+            'name' => 'Deleted User',
+            'email' => 'deleted_user_' . $this->id . '@deleted.local',
+            'phone' => null,
+            'avatar' => null,
+            'bio' => null,
+            'social_links' => null,
+            'preferences' => null,
+            'is_active' => false,
+        ]);
+    }
+
+    /**
+     * Export user data for GDPR data portability
+     */
+    public function exportPersonalData(): array
+    {
+        return [
+            'profile' => [
+                'name' => $this->name,
+                'email' => $this->email,
+                'phone' => $this->phone,
+                'bio' => $this->bio,
+                'social_links' => $this->social_links,
+                'created_at' => $this->created_at,
+                'last_login_at' => $this->last_login_at,
+            ],
+            'articles' => $this->articles()->pluck('title', 'slug')->toArray(),
+            'comments' => $this->comments()->with('article:id,title,slug')->get()->map(function ($comment) {
+                return [
+                    'content' => $comment->content,
+                    'article' => $comment->article->title,
+                    'created_at' => $comment->created_at,
+                ];
+            })->toArray(),
+            'bookmarks' => $this->bookmarks()->with('article:id,title,slug')->get()->map(function ($bookmark) {
+                return [
+                    'article' => $bookmark->article->title,
+                    'bookmarked_at' => $bookmark->created_at,
+                ];
+            })->toArray(),
+        ];
+    }
+
+    /**
+     * Check if user has given consent for data processing
+     */
+    public function hasConsentFor(string $purpose): bool
+    {
+        $consents = $this->preferences['data_consents'] ?? [];
+        return $consents[$purpose] ?? false;
+    }
+
+    /**
+     * Update consent for data processing
+     */
+    public function updateConsent(string $purpose, bool $granted): bool
+    {
+        $preferences = $this->preferences ?? [];
+        $preferences['data_consents'][$purpose] = $granted;
+        $preferences['consent_updated_at'] = now()->toISOString();
+        
+        return $this->update(['preferences' => $preferences]);
+    }
 }

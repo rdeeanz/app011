@@ -234,6 +234,11 @@ class HomeController extends Controller
     private function getLatestNews()
     {
         return Article::published()
+            ->with(['category:id,name,slug,color', 'author:id,name,avatar'])
+            ->select([
+                'id', 'title', 'slug', 'excerpt', 'featured_image', 
+                'published_at', 'views_count', 'category_id', 'author_id'
+            ])
             ->latest('published_at')
             ->limit(12)
             ->get();
