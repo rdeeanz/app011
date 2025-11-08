@@ -42,12 +42,11 @@
                 ref="searchInputRef"
                 v-model="searchQuery"
                 type="search"
-                placeholder="Cari berita… (minimal 3 karakter)"
+                placeholder="Cari berita…"
                 :disabled="isSearching"
                 :aria-busy="isSearching"
                 :aria-describedby="searchHintId"
                 class="w-full px-4 py-2 pl-10 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-detik-red focus:border-transparent outline-none transition-all disabled:bg-gray-100 disabled:cursor-not-allowed"
-                @keydown.enter="handleSearchImmediate"
                 @keydown.esc="handleEscape"
                 autocomplete="off"
               >
@@ -93,7 +92,10 @@
               <div :id="searchHintId" role="status" aria-live="polite" class="sr-only">
                 <span v-if="isSearching">Sedang mencari berita...</span>
                 <span v-else-if="searchQuery && validatedQuery.length > 0 && validatedQuery.length < 3">
-                  Masukkan minimal 3 karakter untuk mencari
+                  Masukkan minimal 3 karakter, lalu tekan Enter untuk mencari
+                </span>
+                <span v-else-if="searchQuery && validatedQuery.length >= 3">
+                  Tekan Enter untuk mencari
                 </span>
               </div>
             </form>
@@ -103,7 +105,14 @@
               class="text-xs text-amber-600 mt-1 ml-1"
               aria-hidden="true"
             >
-              Minimal 3 karakter untuk mencari
+              Minimal 3 karakter, tekan Enter untuk mencari
+            </p>
+            <p 
+              v-else-if="searchQuery && validatedQuery.length >= 3" 
+              class="text-xs text-gray-500 mt-1 ml-1"
+              aria-hidden="true"
+            >
+              Tekan Enter untuk mencari
             </p>
           </div>
 
@@ -227,7 +236,6 @@ const searchInputRef = ref<HTMLInputElement | null>(null)
 const searchQuery = ref('')
 const isSearching = ref(false)
 const searchHintId = 'search-hint'
-const debounceTimeout = ref<number | null>(null)
 const abortController = ref<AbortController | null>(null)
 const searchCache = ref<Map<string, any>>(new Map())
 
@@ -239,35 +247,11 @@ const validatedQuery = computed(() => {
     .normalize('NFC') // Unicode normalization
 })
 
-// Debounced search (300ms)
-const triggerDebouncedSearch = () => {
-  // Clear previous timeout
-  if (debounceTimeout.value !== null) {
-    clearTimeout(debounceTimeout.value)
-    debounceTimeout.value = null
-  }
-
-  // Only search if >= 3 characters
-  if (validatedQuery.value.length < 3) {
-    return
-  }
-
-  // Set new timeout for debounced search
-  debounceTimeout.value = window.setTimeout(() => {
-    performSearch()
-  }, 300)
-}
-
-// Watch search query untuk debounce
-watch(searchQuery, () => {
-  triggerDebouncedSearch()
-})
-
-// Perform search dengan cache dan AbortController
+// Perform search dengan cache dan AbortController (hanya via Enter key atau tombol submit)
 const performSearch = () => {
   const query = validatedQuery.value
 
-  // Check minimum length
+  // Check minimum length (3 characters)
   if (query.length < 3) {
     return
   }
@@ -315,23 +299,7 @@ const performSearch = () => {
   })
 }
 
-// Handle immediate search (Enter key)
-const handleSearchImmediate = (e: KeyboardEvent) => {
-  e.preventDefault()
-  
-  // Clear debounce timeout
-  if (debounceTimeout.value !== null) {
-    clearTimeout(debounceTimeout.value)
-    debounceTimeout.value = null
-  }
-
-  // Only search if >= 3 characters
-  if (validatedQuery.value.length >= 3) {
-    performSearch()
-  }
-}
-
-// Handle form submit
+// Handle form submit (triggered by Enter key or search button)
 const handleSearch = () => {
   if (validatedQuery.value.length >= 3) {
     performSearch()
@@ -341,12 +309,6 @@ const handleSearch = () => {
 // Handle ESC key
 const handleEscape = () => {
   searchQuery.value = ''
-  
-  // Clear debounce timeout
-  if (debounceTimeout.value !== null) {
-    clearTimeout(debounceTimeout.value)
-    debounceTimeout.value = null
-  }
 
   // Cancel any ongoing request
   if (abortController.value) {
@@ -409,9 +371,6 @@ onUnmounted(() => {
   window.removeEventListener('popstate', handlePopstate)
   
   // Cleanup
-  if (debounceTimeout.value !== null) {
-    clearTimeout(debounceTimeout.value)
-  }
   if (abortController.value) {
     abortController.value.abort()
   }
