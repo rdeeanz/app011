@@ -592,9 +592,12 @@ class Article extends Model
     public function getFeaturedImageUrlAttribute(): ?string
     {
         if ($this->featured_image) {
-            // Check if already a full URL (http:// or https://)
+            // Check if already a full URL with http:// or https:// scheme
             if (filter_var($this->featured_image, FILTER_VALIDATE_URL)) {
-                return $this->featured_image;
+                $scheme = parse_url($this->featured_image, PHP_URL_SCHEME);
+                if ($scheme === 'http' || $scheme === 'https') {
+                    return $this->featured_image;
+                }
             }
             
             // Otherwise, treat as storage path
