@@ -119,7 +119,7 @@ Route::get('/cari', function () {
     $query = request('q');
     $categories = Category::active()->root()->with('activeChildren')->get();
     
-    if ($query && strlen(trim($query)) >= 2) {
+    if ($query && strlen(trim($query)) >= 3) {
         // Escape SQL LIKE wildcard characters to treat them as literals
         $escapedQuery = str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $query);
         

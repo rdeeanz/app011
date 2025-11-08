@@ -380,7 +380,7 @@ watch(() => page.url, (newUrl) => {
 }, { immediate: true })
 
 // Handle browser back/forward
-window.addEventListener('popstate', () => {
+const handlePopstate = () => {
   const params = new URLSearchParams(window.location.search)
   const query = params.get('q')
   if (query) {
@@ -388,7 +388,7 @@ window.addEventListener('popstate', () => {
   } else {
     searchQuery.value = ''
   }
-})
+}
 
 // Keyboard shortcut to focus search (/)
 const handleKeydown = (e: KeyboardEvent) => {
@@ -401,10 +401,12 @@ const handleKeydown = (e: KeyboardEvent) => {
 
 onMounted(() => {
   window.addEventListener('keydown', handleKeydown)
+  window.addEventListener('popstate', handlePopstate)
 })
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeydown)
+  window.removeEventListener('popstate', handlePopstate)
   
   // Cleanup
   if (debounceTimeout.value !== null) {
