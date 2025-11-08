@@ -79,11 +79,12 @@
             </div>
 
             <!-- Featured Image -->
-            <div v-if="article.featured_image" class="mb-6">
+            <div v-if="article.featured_image_url || article.featured_image" class="mb-6">
               <img 
-                :src="article.featured_image_url || `/storage/${article.featured_image}`" 
+                :src="article.featured_image_url || article.featured_image" 
                 :alt="article.title"
-                class="w-full h-64 object-cover rounded-lg"
+                class="w-full h-auto object-cover rounded-lg"
+                onerror="this.onerror=null; this.src='/images/placeholder.jpg';"
               >
             </div>
 

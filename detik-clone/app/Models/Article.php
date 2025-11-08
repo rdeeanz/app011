@@ -592,6 +592,12 @@ class Article extends Model
     public function getFeaturedImageUrlAttribute(): ?string
     {
         if ($this->featured_image) {
+            // Check if already a full URL (http:// or https://)
+            if (filter_var($this->featured_image, FILTER_VALIDATE_URL)) {
+                return $this->featured_image;
+            }
+            
+            // Otherwise, treat as storage path
             return config('app.cdn_enabled') 
                 ? config('app.cdn_url') . '/' . $this->featured_image
                 : asset('storage/' . $this->featured_image);
