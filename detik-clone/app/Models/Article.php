@@ -194,6 +194,10 @@ class Article extends Model
         'comments_enabled' => true,
     ];
 
+    protected $appends = [
+        'featured_image_url',
+    ];
+
     // ===== RELATIONSHIPS =====
     
     // User relationships

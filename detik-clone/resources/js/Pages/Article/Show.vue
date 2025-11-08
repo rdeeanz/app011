@@ -166,12 +166,13 @@
                 class="flex space-x-3"
               >
                 <img 
-                  v-if="related.featured_image"
-                  :src="related.featured_image_url || `/storage/${related.featured_image}`"
+                  v-if="related.featured_image_url || related.featured_image"
+                  :src="related.featured_image_url || related.featured_image"
                   :alt="related.title"
-                  class="w-16 h-16 object-cover rounded"
+                  class="w-16 h-16 object-cover rounded flex-shrink-0"
+                  onerror="this.onerror=null; this.src='/images/placeholder.jpg';"
                 >
-                <div class="flex-1">
+                <div class="flex-1 min-w-0">
                   <Link 
                     :href="`/articles/${related.slug}`"
                     class="text-sm font-medium text-gray-900 hover:text-blue-600 line-clamp-2"
@@ -196,12 +197,13 @@
                 class="flex space-x-3"
               >
                 <img 
-                  v-if="more.featured_image"
-                  :src="more.featured_image_url || `/storage/${more.featured_image}`"
+                  v-if="more.featured_image_url || more.featured_image"
+                  :src="more.featured_image_url || more.featured_image"
                   :alt="more.title"
-                  class="w-16 h-16 object-cover rounded"
+                  class="w-16 h-16 object-cover rounded flex-shrink-0"
+                  onerror="this.onerror=null; this.src='/images/placeholder.jpg';"
                 >
-                <div class="flex-1">
+                <div class="flex-1 min-w-0">
                   <Link 
                     :href="`/articles/${more.slug}`"
                     class="text-sm font-medium text-gray-900 hover:text-blue-600 line-clamp-2"
