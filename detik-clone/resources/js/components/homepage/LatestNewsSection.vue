@@ -204,13 +204,9 @@ let handleScroll: (() => void) | null = null
 const totalPages = computed(() => Math.ceil(totalArticles.value / props.itemsPerPage))
 
 const currentPageArticles = computed(() => {
-  if (props.showLoadMore) {
-    return articles.value
-  }
-  
-  const start = (currentPage.value - 1) * props.itemsPerPage
-  const end = start + props.itemsPerPage
-  return articles.value.slice(start, end)
+  // For server-side pagination, just return all articles from API
+  // The API already returns only the items for the current page
+  return articles.value
 })
 
 const startItem = computed(() => {
@@ -297,9 +293,8 @@ const goToPage = (page: number) => {
   if (page >= 1 && page <= totalPages.value) {
     currentPage.value = page
     
-    if (!props.showLoadMore) {
-      fetchLatestNews(page)
-    }
+    // Always fetch from server for proper server-side pagination
+    fetchLatestNews(page)
     
     // Scroll to top of section
     document.querySelector('.latest-news-section')?.scrollIntoView({ 
