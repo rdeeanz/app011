@@ -35,21 +35,28 @@
 
           <!-- Search Bar -->
           <div class="flex-1 max-w-xl mx-8">
-            <form @submit.prevent="handleSearch" class="relative">
+            <form @submit.prevent="handleSearch" class="relative" role="search">
+              <label for="search-input" class="sr-only">Cari berita</label>
               <input
+                id="search-input"
+                ref="searchInputRef"
                 v-model="searchQuery"
                 type="search"
-                placeholder="Cari berita... (tekan / untuk fokus)"
+                placeholder="Cari berita… (minimal 3 karakter)"
                 :disabled="isSearching"
+                :aria-busy="isSearching"
+                :aria-describedby="searchHintId"
                 class="w-full px-4 py-2 pl-10 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-detik-red focus:border-transparent outline-none transition-all disabled:bg-gray-100 disabled:cursor-not-allowed"
-                @keydown.enter="handleSearch"
+                @keydown.enter="handleSearchImmediate"
+                @keydown.esc="handleEscape"
+                autocomplete="off"
               >
               <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <svg v-if="!isSearching" class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg v-if="!isSearching" class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m21 21-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
                 </svg>
                 <!-- Loading Spinner -->
-                <svg v-else class="animate-spin h-5 w-5 text-detik-red" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <svg v-else class="animate-spin h-5 w-5 text-detik-red" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" role="status" aria-label="Mencari...">
                   <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                   <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
@@ -59,31 +66,44 @@
                 <button
                   v-if="searchQuery && !isSearching"
                   type="button"
-                  @click="clearSearch"
+                  @click="handleClear"
                   class="text-gray-400 hover:text-gray-600 transition-colors"
-                  title="Clear search"
+                  title="Hapus pencarian (ESC)"
+                  aria-label="Hapus pencarian"
                 >
-                  <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
                   </svg>
                 </button>
                 <!-- Search Button -->
                 <button
-                  v-if="searchQuery && searchQuery.trim().length >= 2"
+                  v-if="searchQuery && validatedQuery.length >= 3"
                   type="submit"
                   :disabled="isSearching"
                   class="text-detik-red hover:text-red-700 transition-colors disabled:opacity-50"
-                  title="Search"
+                  title="Cari (Enter)"
+                  aria-label="Cari berita"
                 >
-                  <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
                   </svg>
                 </button>
               </div>
+              <!-- Search Hint/Status -->
+              <div :id="searchHintId" role="status" aria-live="polite" class="sr-only">
+                <span v-if="isSearching">Sedang mencari berita...</span>
+                <span v-else-if="searchQuery && validatedQuery.length > 0 && validatedQuery.length < 3">
+                  Masukkan minimal 3 karakter untuk mencari
+                </span>
+              </div>
             </form>
-            <!-- Search Hint -->
-            <p v-if="searchQuery && searchQuery.trim().length > 0 && searchQuery.trim().length < 2" class="text-xs text-amber-600 mt-1 ml-1">
-              Minimal 2 karakter untuk mencari
+            <!-- Visual Hint -->
+            <p 
+              v-if="searchQuery && validatedQuery.length > 0 && validatedQuery.length < 3" 
+              class="text-xs text-amber-600 mt-1 ml-1"
+              aria-hidden="true"
+            >
+              Minimal 3 karakter untuk mencari
             </p>
           </div>
 
@@ -187,7 +207,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { Link, router, usePage } from '@inertiajs/vue3'
 
 interface Category {
@@ -203,53 +223,179 @@ withDefaults(defineProps<{
 })
 
 const page = usePage()
+const searchInputRef = ref<HTMLInputElement | null>(null)
 const searchQuery = ref('')
 const isSearching = ref(false)
+const searchHintId = 'search-hint'
+const debounceTimeout = ref<number | null>(null)
+const abortController = ref<AbortController | null>(null)
+const searchCache = ref<Map<string, any>>(new Map())
 
-const handleSearch = () => {
-  const trimmedQuery = searchQuery.value.trim()
-  if (trimmedQuery.length >= 2) {
-    isSearching.value = true
-    router.visit('/cari', {
-      method: 'get',
-      data: { q: trimmedQuery },
+// Validasi dan normalisasi query
+const validatedQuery = computed(() => {
+  return searchQuery.value
+    .trim()
+    .replace(/\s+/g, ' ') // Normalisasi spasi ganda menjadi single space
+    .normalize('NFC') // Unicode normalization
+})
+
+// Debounced search (300ms)
+const triggerDebouncedSearch = () => {
+  // Clear previous timeout
+  if (debounceTimeout.value !== null) {
+    clearTimeout(debounceTimeout.value)
+    debounceTimeout.value = null
+  }
+
+  // Only search if >= 3 characters
+  if (validatedQuery.value.length < 3) {
+    return
+  }
+
+  // Set new timeout for debounced search
+  debounceTimeout.value = window.setTimeout(() => {
+    performSearch()
+  }, 300)
+}
+
+// Watch search query untuk debounce
+watch(searchQuery, () => {
+  triggerDebouncedSearch()
+})
+
+// Perform search dengan cache dan AbortController
+const performSearch = () => {
+  const query = validatedQuery.value
+
+  // Check minimum length
+  if (query.length < 3) {
+    return
+  }
+
+  // Check cache
+  const cacheKey = query.toLowerCase()
+  if (searchCache.value.has(cacheKey)) {
+    // Use cached result
+    const cachedUrl = searchCache.value.get(cacheKey)
+    router.visit(cachedUrl, {
       preserveState: false,
-      preserveScroll: false,
-      onFinish: () => {
-        isSearching.value = false
-      }
+      preserveScroll: false
     })
+    return
+  }
+
+  // Cancel previous request
+  if (abortController.value) {
+    abortController.value.abort()
+  }
+
+  // Create new AbortController
+  abortController.value = new AbortController()
+
+  isSearching.value = true
+
+  // Update URL with query parameter
+  const searchUrl = `/cari?q=${encodeURIComponent(query)}`
+  
+  // Cache the search URL
+  searchCache.value.set(cacheKey, searchUrl)
+
+  router.visit(searchUrl, {
+    method: 'get',
+    preserveState: false,
+    preserveScroll: false,
+    onFinish: () => {
+      isSearching.value = false
+      abortController.value = null
+    },
+    onError: () => {
+      isSearching.value = false
+      abortController.value = null
+    }
+  })
+}
+
+// Handle immediate search (Enter key)
+const handleSearchImmediate = (e: KeyboardEvent) => {
+  e.preventDefault()
+  
+  // Clear debounce timeout
+  if (debounceTimeout.value !== null) {
+    clearTimeout(debounceTimeout.value)
+    debounceTimeout.value = null
+  }
+
+  // Only search if >= 3 characters
+  if (validatedQuery.value.length >= 3) {
+    performSearch()
   }
 }
 
-const clearSearch = () => {
-  searchQuery.value = ''
-  // Focus back on search input after clearing
-  const searchInput = document.querySelector('input[type="search"]') as HTMLInputElement
-  searchInput?.focus()
+// Handle form submit
+const handleSearch = () => {
+  if (validatedQuery.value.length >= 3) {
+    performSearch()
+  }
 }
 
-// Watch for route changes to update search query if user navigates to search page directly
+// Handle ESC key
+const handleEscape = () => {
+  searchQuery.value = ''
+  
+  // Clear debounce timeout
+  if (debounceTimeout.value !== null) {
+    clearTimeout(debounceTimeout.value)
+    debounceTimeout.value = null
+  }
+
+  // Cancel any ongoing request
+  if (abortController.value) {
+    abortController.value.abort()
+    abortController.value = null
+  }
+
+  isSearching.value = false
+
+  // Focus back on input
+  searchInputRef.value?.focus()
+}
+
+// Handle clear button
+const handleClear = () => {
+  handleEscape()
+}
+
+// Sync URL query param with search field
 watch(() => page.url, (newUrl) => {
   if (newUrl.includes('/cari')) {
     const params = new URLSearchParams(newUrl.split('?')[1] || '')
     const query = params.get('q')
-    if (query) {
+    if (query && query !== searchQuery.value) {
       searchQuery.value = query
     }
-  } else if (!newUrl.includes('/cari')) {
+  } else if (!newUrl.includes('/cari') && searchQuery.value) {
     // Clear search query when navigating away from search page
     searchQuery.value = ''
   }
 }, { immediate: true })
+
+// Handle browser back/forward
+window.addEventListener('popstate', () => {
+  const params = new URLSearchParams(window.location.search)
+  const query = params.get('q')
+  if (query) {
+    searchQuery.value = query
+  } else {
+    searchQuery.value = ''
+  }
+})
 
 // Keyboard shortcut to focus search (/)
 const handleKeydown = (e: KeyboardEvent) => {
   // Focus search field when "/" is pressed (and not in an input/textarea)
   if (e.key === '/' && !['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) {
     e.preventDefault()
-    const searchInput = document.querySelector('input[type="search"]') as HTMLInputElement
-    searchInput?.focus()
+    searchInputRef.value?.focus()
   }
 }
 
@@ -259,6 +405,13 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeydown)
+  
+  // Cleanup
+  if (debounceTimeout.value !== null) {
+    clearTimeout(debounceTimeout.value)
+  }
+  if (abortController.value) {
+    abortController.value.abort()
+  }
 })
-</script>
 </script>

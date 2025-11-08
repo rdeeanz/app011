@@ -12,40 +12,12 @@
           {{ query ? 'Hasil Pencarian' : 'Pencarian Berita' }}
         </h1>
         
-        <!-- Search Box -->
-        <form @submit.prevent="performSearch" class="max-w-2xl">
-          <div class="relative">
-            <input
-              v-model="searchQuery"
-              type="search"
-              placeholder="Cari berita..."
-              class="w-full px-4 py-3 pl-12 pr-4 text-lg border border-gray-300 rounded-lg focus:ring-2 focus:ring-detik-red focus:border-transparent"
-              autofocus
-            >
-            <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-              <svg class="h-6 w-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m21 21-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-              </svg>
-            </div>
-            <button
-              v-if="searchQuery"
-              type="button"
-              @click="clearSearch"
-              class="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-gray-600"
-            >
-              <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-              </svg>
-            </button>
-          </div>
-        </form>
-
         <!-- Search Info -->
-        <div v-if="query" class="mt-4 text-gray-600">
+        <div v-if="query" class="mt-4 text-gray-600" role="status" aria-live="polite">
           <p>
             Menampilkan hasil untuk: <strong class="text-gray-900">"{{ query }}"</strong>
-            <span v-if="articles.total > 0" class="ml-2">
-              ({{ articles.total }} {{ articles.total === 1 ? 'hasil' : 'hasil' }} ditemukan)
+            <span v-if="hasResults" class="ml-2">
+              ({{ (articles as PaginatedArticles).total }} {{ (articles as PaginatedArticles).total === 1 ? 'hasil' : 'hasil' }} ditemukan)
             </span>
           </p>
         </div>
@@ -78,47 +50,65 @@
               v-for="article in articles.data" 
               :key="article.id"
               class="group bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-lg transition-all duration-300"
+              :aria-labelledby="`article-title-${article.id}`"
             >
-              <Link :href="`/articles/${article.slug}`">
-                <!-- Image -->
-                <div class="relative h-48 overflow-hidden">
+              <!-- Image -->
+              <div class="relative h-48 overflow-hidden">
+                <Link :href="`/artikel/${article.slug}`" :aria-label="`Lihat artikel: ${article.title}`">
                   <img 
                     :src="article.featured_image || '/images/placeholder.jpg'"
                     :alt="article.title"
                     class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
                     loading="lazy"
                   >
-                  <!-- Category Badge -->
-                  <div class="absolute top-3 left-3">
-                    <span 
-                      class="text-white px-3 py-1 rounded-full text-xs font-semibold"
-                      :style="{ backgroundColor: article.category?.color || '#dc2626' }"
-                    >
-                      {{ article.category?.name || 'News' }}
-                    </span>
+                </Link>
+                <!-- Category Badge -->
+                <div class="absolute top-3 left-3">
+                  <span 
+                    class="text-white px-3 py-1 rounded-full text-xs font-semibold"
+                    :style="{ backgroundColor: article.category?.color || '#dc2626' }"
+                  >
+                    {{ article.category?.name || 'News' }}
+                  </span>
+                </div>
+              </div>
+
+              <!-- Content -->
+              <div class="p-4">
+                <!-- Title with keyword highlighting -->
+                <h3 
+                  :id="`article-title-${article.id}`"
+                  class="font-bold text-gray-900 group-hover:text-detik-red line-clamp-2 mb-2 text-lg"
+                  v-html="highlightKeyword(article.title, query || '')"
+                />
+                
+                <!-- Summary with 2-3 sentences -->
+                <p class="text-gray-600 text-sm line-clamp-3 mb-3">
+                  {{ getSummary(article.excerpt) }}
+                </p>
+                
+                <!-- Meta -->
+                <div class="flex items-center justify-between text-xs text-gray-500 mb-3">
+                  <div class="flex items-center space-x-2">
+                    <span>{{ article.author?.name || 'Redaksi' }}</span>
                   </div>
+                  <time :datetime="article.published_at">
+                    {{ formatDate(article.published_at) }}
+                  </time>
                 </div>
 
-                <!-- Content -->
-                <div class="p-4">
-                  <h3 class="font-bold text-gray-900 group-hover:text-detik-red line-clamp-2 mb-2 text-lg">
-                    {{ article.title }}
-                  </h3>
-                  <p class="text-gray-600 text-sm line-clamp-3 mb-3">
-                    {{ article.excerpt }}
-                  </p>
-                  
-                  <!-- Meta -->
-                  <div class="flex items-center justify-between text-xs text-gray-500">
-                    <div class="flex items-center space-x-2">
-                      <span>{{ article.author?.name || 'Redaksi' }}</span>
-                    </div>
-                    <time :datetime="article.published_at">
-                      {{ formatDate(article.published_at) }}
-                    </time>
-                  </div>
-                </div>
-              </Link>
+                <!-- Read More Link -->
+                <Link 
+                  :href="`/artikel/${article.slug}`"
+                  class="inline-flex items-center text-sm font-medium text-detik-red hover:text-red-700 transition-colors"
+                  :aria-label="`Baca selengkapnya: ${article.title}`"
+                >
+                  Baca selengkapnya
+                  <svg class="ml-1 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                  </svg>
+                </Link>
+              </div>
             </article>
           </div>
 
@@ -196,8 +186,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { Head, Link, router } from '@inertiajs/vue3'
+import { computed } from 'vue'
+import { Head, Link } from '@inertiajs/vue3'
 import AppLayout from '@/Layouts/AppLayout.vue'
 
 interface Category {
@@ -246,7 +236,12 @@ const props = defineProps<{
   categories?: Category[]
 }>()
 
-const searchQuery = ref(props.query || '')
+// Check if we have results
+const hasResults = computed(() => {
+  return props.articles && 
+         Array.isArray(props.articles.data) && 
+         props.articles.data.length > 0
+})
 
 // Type guard to check if articles has pagination fields
 const hasPagination = computed(() => {
@@ -254,6 +249,51 @@ const hasPagination = computed(() => {
     && typeof (props.articles as any).last_page === 'number' 
     && typeof (props.articles as any).current_page === 'number'
 })
+
+// Highlight keyword in text
+const highlightKeyword = (text: string, keyword: string): string => {
+  if (!keyword || !text) return text
+  
+  // Escape special regex characters and normalize
+  const escapedKeyword = keyword
+    .trim()
+    .replace(/\s+/g, ' ')
+    .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  
+  // Case-insensitive, Unicode-aware regex
+  const regex = new RegExp(`(${escapedKeyword})`, 'gi')
+  
+  return text.replace(regex, '<mark class="bg-yellow-200 text-gray-900 font-medium px-1 rounded">$1</mark>')
+}
+
+// Format date - DD MMM YYYY
+const formatDate = (dateString: string): string => {
+  const date = new Date(dateString)
+  
+  return date.toLocaleDateString('id-ID', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric'
+  })
+}
+
+// Extract first 2-3 sentences from excerpt or content
+const getSummary = (text: string, maxSentences: number = 3): string => {
+  if (!text) return ''
+  
+  // Split by sentence endings
+  const sentences = text.match(/[^.!?]+[.!?]+/g) || [text]
+  
+  // Take first maxSentences
+  const summary = sentences.slice(0, maxSentences).join(' ')
+  
+  // Limit to reasonable length
+  if (summary.length > 200) {
+    return summary.substring(0, 197) + '...'
+  }
+  
+  return summary
+}
 
 // Helper function to generate page URLs consistently
 const getPageUrl = (page: number): string => {
@@ -324,60 +364,13 @@ const endItem = computed(() => {
   if (!hasPagination.value) return 0
   return (props.articles as any).to ?? 0
 })
-
-// Methods
-const performSearch = () => {
-  if (searchQuery.value.trim()) {
-    router.get('/cari', { q: searchQuery.value.trim() })
-  }
-}
-
-const clearSearch = () => {
-  searchQuery.value = ''
-  router.get('/cari')
-}
-
-const formatDate = (dateString: string): string => {
-  const date = new Date(dateString)
-  const now = new Date()
-  const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000)
-  const diffInMinutes = Math.floor(diffInSeconds / 60)
-  const diffInHours = Math.floor(diffInMinutes / 60)
-  const diffInDays = Math.floor(diffInHours / 24)
-
-  if (diffInMinutes < 1) {
-    return 'Baru saja'
-  } else if (diffInMinutes < 60) {
-    return `${diffInMinutes} menit yang lalu`
-  } else if (diffInHours < 24) {
-    return `${diffInHours} jam yang lalu`
-  } else if (diffInDays === 1) {
-    return 'Kemarin'
-  } else if (diffInDays < 7) {
-    return `${diffInDays} hari yang lalu`
-  } else {
-    return date.toLocaleDateString('id-ID', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric'
-    })
-  }
-}
-
-// Lifecycle
-onMounted(() => {
-  // Focus on search input if no query
-  if (!props.query) {
-    const input = document.querySelector('input[type="search"]') as HTMLInputElement
-    input?.focus()
-  }
-})
 </script>
 
 <style scoped>
 .line-clamp-2 {
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -385,7 +378,17 @@ onMounted(() => {
 .line-clamp-3 {
   display: -webkit-box;
   -webkit-line-clamp: 3;
+  line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+/* Ensure mark elements work properly in v-html */
+:deep(mark) {
+  background-color: #fef08a;
+  color: #111827;
+  font-weight: 500;
+  padding: 0 0.25rem;
+  border-radius: 0.125rem;
 }
 </style>
