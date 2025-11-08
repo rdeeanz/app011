@@ -114,27 +114,45 @@ Route::get('/kategori/{category:slug}', function (Category $category) {
 })->name('category.show');
 
 
-
-// Search
+// Search - Optimized search with pagination
 Route::get('/cari', function () {
     $query = request('q');
-    $articles = [];
+    $categories = Category::active()->root()->with('activeChildren')->get();
     
-    if ($query) {
+    if ($query && strlen(trim($query)) >= 2) {
+        // Escape SQL LIKE wildcard characters to treat them as literals
+        $escapedQuery = str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $query);
+        
+        // Search in title, excerpt, and content with escaped query
         $articles = Article::published()
-            ->where(function ($q) use ($query) {
-                $q->where('title', 'like', "%{$query}%")
-                  ->orWhere('excerpt', 'like', "%{$query}%")
-                  ->orWhere('content', 'like', "%{$query}%");
+            ->where(function ($q) use ($escapedQuery) {
+                $q->where('title', 'like', "%{$escapedQuery}%")
+                  ->orWhere('excerpt', 'like', "%{$escapedQuery}%")
+                  ->orWhere('content', 'like', "%{$escapedQuery}%");
             })
-            ->with(['author', 'category'])
+            ->with(['author:id,name,avatar', 'category:id,name,slug,color'])
+            ->select([
+                'id', 'title', 'slug', 'excerpt', 'featured_image',
+                'published_at', 'views_count', 'category_id', 'author_id'
+            ])
             ->latest('published_at')
-            ->paginate(15);
+            ->paginate(15)
+            ->withQueryString(); // Preserve search query in pagination links
+    } else {
+        // Return a complete pagination structure for consistency
+        $articles = new \Illuminate\Pagination\LengthAwarePaginator(
+            [],
+            0,
+            15,
+            1,
+            ['path' => request()->url(), 'query' => request()->query()]
+        );
     }
 
     return Inertia::render('Search', [
         'query' => $query,
         'articles' => $articles,
+        'categories' => $categories,
     ]);
 })->name('search');
 

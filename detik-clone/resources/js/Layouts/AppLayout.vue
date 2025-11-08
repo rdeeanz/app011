@@ -35,19 +35,56 @@
 
           <!-- Search Bar -->
           <div class="flex-1 max-w-xl mx-8">
-            <form @submit.prevent="search" class="relative">
+            <form @submit.prevent="handleSearch" class="relative">
               <input
                 v-model="searchQuery"
                 type="search"
-                placeholder="Cari berita..."
-                class="w-full px-4 py-2 pl-10 pr-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-detik-red focus:border-transparent"
+                placeholder="Cari berita... (tekan / untuk fokus)"
+                :disabled="isSearching"
+                class="w-full px-4 py-2 pl-10 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-detik-red focus:border-transparent outline-none transition-all disabled:bg-gray-100 disabled:cursor-not-allowed"
+                @keydown.enter="handleSearch"
               >
               <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg v-if="!isSearching" class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m21 21-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
                 </svg>
+                <!-- Loading Spinner -->
+                <svg v-else class="animate-spin h-5 w-5 text-detik-red" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+              </div>
+              <div class="absolute inset-y-0 right-0 flex items-center pr-3 space-x-1">
+                <!-- Clear Button -->
+                <button
+                  v-if="searchQuery && !isSearching"
+                  type="button"
+                  @click="clearSearch"
+                  class="text-gray-400 hover:text-gray-600 transition-colors"
+                  title="Clear search"
+                >
+                  <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                  </svg>
+                </button>
+                <!-- Search Button -->
+                <button
+                  v-if="searchQuery && searchQuery.trim().length >= 2"
+                  type="submit"
+                  :disabled="isSearching"
+                  class="text-detik-red hover:text-red-700 transition-colors disabled:opacity-50"
+                  title="Search"
+                >
+                  <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                  </svg>
+                </button>
               </div>
             </form>
+            <!-- Search Hint -->
+            <p v-if="searchQuery && searchQuery.trim().length > 0 && searchQuery.trim().length < 2" class="text-xs text-amber-600 mt-1 ml-1">
+              Minimal 2 karakter untuk mencari
+            </p>
           </div>
 
           <!-- Social Media -->
@@ -150,8 +187,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import { Link, router } from '@inertiajs/vue3'
+import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { Link, router, usePage } from '@inertiajs/vue3'
 
 interface Category {
   id: number
@@ -165,11 +202,63 @@ withDefaults(defineProps<{
   categories: () => []
 })
 
+const page = usePage()
 const searchQuery = ref('')
+const isSearching = ref(false)
 
-const search = () => {
-  if (searchQuery.value.trim()) {
-    router.get('/cari', { q: searchQuery.value.trim() })
+const handleSearch = () => {
+  const trimmedQuery = searchQuery.value.trim()
+  if (trimmedQuery.length >= 2) {
+    isSearching.value = true
+    router.visit('/cari', {
+      method: 'get',
+      data: { q: trimmedQuery },
+      preserveState: false,
+      preserveScroll: false,
+      onFinish: () => {
+        isSearching.value = false
+      }
+    })
   }
 }
+
+const clearSearch = () => {
+  searchQuery.value = ''
+  // Focus back on search input after clearing
+  const searchInput = document.querySelector('input[type="search"]') as HTMLInputElement
+  searchInput?.focus()
+}
+
+// Watch for route changes to update search query if user navigates to search page directly
+watch(() => page.url, (newUrl) => {
+  if (newUrl.includes('/cari')) {
+    const params = new URLSearchParams(newUrl.split('?')[1] || '')
+    const query = params.get('q')
+    if (query) {
+      searchQuery.value = query
+    }
+  } else if (!newUrl.includes('/cari')) {
+    // Clear search query when navigating away from search page
+    searchQuery.value = ''
+  }
+}, { immediate: true })
+
+// Keyboard shortcut to focus search (/)
+const handleKeydown = (e: KeyboardEvent) => {
+  // Focus search field when "/" is pressed (and not in an input/textarea)
+  if (e.key === '/' && !['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) {
+    e.preventDefault()
+    const searchInput = document.querySelector('input[type="search"]') as HTMLInputElement
+    searchInput?.focus()
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', handleKeydown)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeydown)
+})
+</script>
 </script>
