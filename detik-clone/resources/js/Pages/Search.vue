@@ -54,7 +54,7 @@
             >
               <!-- Image -->
               <div class="relative h-48 overflow-hidden">
-                <Link :href="`/artikel/${article.slug}`" :aria-label="`Lihat artikel: ${article.title}`">
+                <Link :href="`/articles/${article.slug}`" :aria-label="`Lihat artikel: ${article.title}`">
                   <img 
                     :src="article.featured_image || '/images/placeholder.jpg'"
                     :alt="article.title"
@@ -99,7 +99,7 @@
 
                 <!-- Read More Link -->
                 <Link 
-                  :href="`/artikel/${article.slug}`"
+                  :href="`/articles/${article.slug}`"
                   class="inline-flex items-center text-sm font-medium text-detik-red hover:text-red-700 transition-colors"
                   :aria-label="`Baca selengkapnya: ${article.title}`"
                 >
